@@ -130,13 +130,15 @@ class SlotService {
                 throw new ConflictHttpException('Hold already cancelled.');
             }
 
-            $slot = Slot::query()->lockForUpdate()->findOrFail($hold->slot_id);
+            // Атомарная защита от овербукинга
+            $affected = Slot::query()
+                ->where('id', $hold->slot_id)
+                ->where('remaining', '>', 0)
+                ->decrement('remaining');
 
-            if ($slot->remaining <= 0) {
+            if ($affected === 0) {
                 throw new ConflictHttpException('No remaining capacity.');
             }
-
-            $slot->decrement('remaining');
 
             $hold->update([
                 'status' => 'confirmed',
